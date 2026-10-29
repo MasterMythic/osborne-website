@@ -1,0 +1,7 @@
+# osborneos.com
+User-agent: *
+Allow: /
+Disallow: /tools/
+Disallow: /src/
+
+Sitemap: https://osborneos.com/sitemap.xml

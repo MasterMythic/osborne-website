@@ -1,4 +1,4 @@
-/* Osborne — interactions. No dependencies, no network calls. */
+/* Osborne — interactions. No dependencies, no network calls. Each feature runs only on pages that contain it. */
 (() => {
   'use strict';
   const RM = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -6,7 +6,7 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };
-  $('#yr').textContent = String(new Date().getFullYear());
+  const yr = $('#yr'); if (yr) yr.textContent = String(new Date().getFullYear());
 
   /* ---------- nav ---------- */
   const nav = $('.nav');
@@ -16,7 +16,7 @@
     menuBtn.setAttribute('aria-expanded', String(open));
     menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     menu.hidden = !open;
-    document.body.style.overflow = open ? 'hidden' : '';
+    document.documentElement.classList.toggle('menu-lock', open);
     nav.classList.toggle('menu-open', open);
     nav.classList.toggle('scrolled', open || window.scrollY > 20);
     if (open) $('a', menu).focus();
@@ -32,15 +32,6 @@
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  const links = $$('.nav-links a');
-  const secIO = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (en.isIntersecting) links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id));
-    });
-  }, { rootMargin: '-45% 0px -50% 0px' });
-  ['shift', 'protect', 'approach', 'engage', 'enquire'].forEach(id => secIO.observe(document.getElementById(id)));
-  secIO.observe($('.hero'));
-
   /* ---------- reveal ---------- */
   const revIO = new IntersectionObserver(entries => {
     entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); revIO.unobserve(en.target); } });
@@ -48,6 +39,7 @@
   $$('.reveal').forEach(el => revIO.observe(el));
 
   /* ================= HERO: signal field with a protected perimeter ================= */
+  if ($('.field')) (() => {
   const hero = $('.hero');
   const cv = $('.field');
   const ctx = cv.getContext('2d');
@@ -65,7 +57,7 @@
   hero.addEventListener('pointerleave', () => { tx = -9999; ty = -9999; });
 
   const zone = () => W > 860
-    ? { cx: W * 0.76, cy: H * 0.5, rx: Math.min(W * 0.2, 300), ry: Math.min(H * 0.3, 260) }
+    ? { cx: W * 0.8, cy: H * 0.5, rx: Math.min(W * 0.17, 260), ry: Math.min(H * 0.3, 260) }
     : { cx: W * 0.5, cy: H - 125, rx: W * 0.42, ry: 88 };
 
   const draw = (t) => {
@@ -139,8 +131,10 @@
   window.addEventListener('resize', () => { resize(); if (RM.matches) draw(0); });
   RM.addEventListener('change', () => { if (RM.matches) draw(0); else start(); });
   if (RM.matches) draw(0); else start();
+  })();
 
   /* ================= SHIFT: before / now toggle ================= */
+  if ($('.ledger')) (() => {
   const ledger = $('.ledger');
   const eraBtns = $$('.toggle button');
   let touched = false;
@@ -159,8 +153,10 @@
     }, { threshold: 0.45 });
     lio.observe(ledger);
   }
+  })();
 
   /* ================= PROTECT: layer rings ================= */
+  if ($('.rings')) (() => {
   const rings = $$('.rings .ring');
   const layers = $$('.layers li');
   const lightRing = (idx) => {
@@ -207,74 +203,103 @@
   } else {
     probes.forEach(p => { p.el.setAttribute('cx', (260 + Math.cos(p.a) * 244).toFixed(1)); p.el.setAttribute('cy', (260 + Math.sin(p.a) * 244).toFixed(1)); p.el.classList.add('blocked'); });
   }
+  })();
 
-  /* ================= ENQUIRY BRIEF (local only) ================= */
+  /* ================= REVIEW REQUEST (email link) =================
+     Builds a plain-text message and opens it in the visitor's own email app via a mailto: link to the one
+     published address. Nothing is submitted from this page and there are no network calls: the message is
+     sent only if the visitor presses Send in their email app, so the page never claims delivery. */
   const form = $('#brief');
+  if (!form) return;
+  const ADDRESS = 'admin@osborneos.com';
+  const BODY_LIMIT = 1800; // long mailto links fail in some email apps
   const out = $('#brief-out');
   const status = $('#brief-status');
+  const meta = $('#mail-meta');
+  const hrefOut = $('#mailto-href');
   const say = (msg, warn) => { status.textContent = msg; status.classList.toggle('warn', !!warn); };
+  // Make a pasted link unclickable in the message: hxxps://example[.]com
+  const defang = (s) => s.replace(/^\s*(h)tt(ps?)(:\/\/)/i, '$1xx$2$3').replace(/\./g, '[.]');
+  const oneLine = (s) => s.replace(/[\r\n]+/g, ' ').trim();
 
-  const build = () => {
+  const fields = () => {
     const f = form.elements;
     const v = (n) => (f[n] && f[n].value || '').trim();
-    const protect = $$('input[name="protect"]:checked', form).map(i => i.value);
-    const stageEl = $('input[name="stage"]:checked', form);
-    const stage = stageEl ? stageEl.value : '';
-    const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    const lines = ['OSBORNE · PROJECT ENQUIRY BRIEF (draft)', 'Prepared ' + date, ''];
-    const add = (k, val) => { if (val) lines.push((k + ':').padEnd(18) + val); };
-    add('Name', v('name'));
-    add('Organisation', v('org'));
-    add('Role', v('role'));
-    add('Website', v('domain'));
-    add('Protect', protect.join(', '));
-    add('Situation', stage);
-    add('Timing', v('timing'));
-    add('Team size', v('size'));
-    if (v('notes')) { lines.push('', 'What is prompting this:', v('notes')); }
-    if (stage === 'Something has already happened') {
-      lines.push('', 'If an incident is still active, contact your IT or incident response provider now rather than waiting on this brief.');
+    const svcEl = $('input[name="service"]:checked', form);
+    return { name: oneLine(v('name')), email: oneLine(v('email')), company: oneLine(v('company')), website: oneLine(v('website')),
+      service: svcEl ? svcEl.value : '', concern: v('concern'), suspect: v('suspect') ? defang(oneLine(v('suspect'))).slice(0, 300) : '' };
+  };
+  const compose = (d, concern, shortened) => {
+    const lines = ['Protection review request', ''];
+    const add = (k, val) => { if (val) lines.push(k + ': ' + val); };
+    add('Name', d.name); add('Business email', d.email); add('Company', d.company); add('Website', d.website); add('Service', d.service);
+    if (concern) { lines.push('', 'Concern:', concern); }
+    if (shortened) lines.push('[Shortened to fit an email link. Add the rest in your email before sending.]');
+    if (d.suspect) { lines.push('', 'Suspicious link (made unclickable, not opened):', d.suspect); }
+    if (d.service === 'Brand protection' || d.service === 'Both') {
+      lines.push('', 'This is a report for review. I understand Osborne acts only on written authority from the rights owner.');
     }
-    lines.push('', '—', 'Generated on this device. Nothing has been sent.');
-    const filled = [v('name'), v('org'), v('role'), v('domain'), v('notes'), v('timing'), v('size'), stage, protect.length ? 'y' : ''].some(Boolean);
-    return { text: lines.join('\n'), filled };
+    return lines.join('\n');
+  };
+  const build = () => {
+    const d = fields();
+    let body = compose(d, d.concern, false), shortened = false;
+    if (body.length > BODY_LIMIT) {
+      const room = Math.max(0, d.concern.length - (compose(d, d.concern, true).length - BODY_LIMIT) - 1);
+      body = compose(d, d.concern.slice(0, room).trimEnd() + '…', true); shortened = true;
+    }
+    const subject = 'Protection review request' + (d.company ? ': ' + d.company.slice(0, 80) : '');
+    const href = `mailto:${ADDRESS}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\n/g, '\r\n'))}`;
+    const filled = Object.values(d).some(Boolean);
+    return { body, subject, href, filled, shortened, data: d };
   };
   const render = () => {
     const b = build();
-    out.textContent = b.filled ? b.text : 'Your brief will appear here as you answer.';
+    out.textContent = b.filled ? `Subject: ${b.subject}\n\n${b.body}` : 'Your message will appear here as you type.';
+    meta.textContent = b.filled ? `To ${ADDRESS} · ${b.body.length} characters` : `To ${ADDRESS}`;
+    hrefOut.textContent = b.filled ? b.href : '';
     return b;
   };
   form.addEventListener('input', () => { render(); say(''); });
   form.addEventListener('change', () => { render(); say(''); });
-  form.addEventListener('submit', e => e.preventDefault());
   render();
+
+  // Opening the email app is a navigation to a mailto: link, not a form post or network request.
+  // A cancelable 'osborne:mailto' event lets automated tests check the link without opening an email app.
+  const openMail = (href) => {
+    const ev = new CustomEvent('osborne:mailto', { detail: { href }, cancelable: true });
+    if (document.dispatchEvent(ev)) window.location.href = href;
+  };
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const b = build();
+    if (!b.data.concern && !b.data.suspect) { say('Please describe your concern briefly first.', true); form.elements.concern.focus(); return; }
+    if (b.data.email && !form.elements.email.checkValidity()) { say('That email address looks incomplete. Please check it.', true); form.elements.email.focus(); return; }
+    openMail(b.href);
+    say(`Your email app should now open with this message to ${ADDRESS}. It's sent only when you press Send there.` +
+      (b.shortened ? ' Your concern was shortened to fit an email link, so add the rest in your email.' : '') +
+      ' Nothing opened? Copy the address and the message instead.');
+  });
 
   const legacyCopy = (text) => {
     const ta = document.createElement('textarea');
-    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    ta.value = text; ta.setAttribute('readonly', ''); ta.className = 'offscreen';
     document.body.appendChild(ta); ta.select();
     let ok = false; try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
     ta.remove(); return ok;
   };
+  const copy = async (text) => {
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch (_) { /* fall back */ }
+    return legacyCopy(text);
+  };
+  $('#copy-address').addEventListener('click', async () => {
+    say(await copy(ADDRESS) ? `Address copied: ${ADDRESS}` : `Copying was blocked. The address is ${ADDRESS}.`, false);
+  });
   $('#copy-brief').addEventListener('click', async () => {
     const b = build();
-    if (!b.filled) { say('Add a few details first, then copy your brief.', true); return; }
-    let ok = false;
-    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(b.text); ok = true; } } catch (_) { ok = false; }
-    if (!ok) ok = legacyCopy(b.text);
-    if (ok) say('Brief copied to your clipboard. Nothing has been sent.');
-    else { say('Your browser blocked copying. Select the brief text and copy it manually.', true); out.focus(); }
-  });
-  $('#dl-brief').addEventListener('click', () => {
-    const b = build();
-    if (!b.filled) { say('Add a few details first, then download your brief.', true); return; }
-    const blob = new Blob([b.text + '\n'], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'osborne-enquiry-brief.txt';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    say('Brief downloaded to your device. Nothing has been sent.');
+    if (!b.filled) { say('Add a few details first, then copy your message.', true); return; }
+    if (await copy(`To: ${ADDRESS}\nSubject: ${b.subject}\n\n${b.body}`)) say(`Message copied. Paste it into an email to ${ADDRESS}.`);
+    else { say('Your browser blocked copying. Select the message text and copy it manually.', true); out.focus(); }
   });
   $('#clear-brief').addEventListener('click', () => { form.reset(); render(); say('Cleared.'); });
 })();
