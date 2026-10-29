@@ -21,7 +21,7 @@ Then open http://127.0.0.1:8766/ (or open `index.html` directly).
 
 ## Status
 
-- This repository is private and the site is not published. osborneos.com is not connected to it.
+- Published at https://osborneos.com via GitHub Pages.
 - The enquiry builder only copies or downloads a text brief on the visitor's device. Nothing is sent. A real contact route still needs to be chosen and approved.
 - Fonts load from Google Fonts (Libre Baskerville, IBM Plex Sans, IBM Plex Mono).
 - Brand and IP protection are labelled as developing services. The site deliberately makes no claims about clients, certifications, metrics, round-the-clock cover or guaranteed outcomes.
